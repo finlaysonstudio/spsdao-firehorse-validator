@@ -78,6 +78,7 @@ Uses **convict** for environment variable management. See `.env-example` for all
 ./run.sh start all      # Start DB + validator + UI
 ./run.sh stop           # Stop everything
 ./run.sh build          # Build containers, run migrations, download snapshot
+./run.sh build local-snapshot  # Build using existing local snapshot (non-interactive)
 ./run.sh logs           # Tail logs
 ./run.sh rebuild_service validator  # Rebuild after env changes
 ./run.sh psql -c "SELECT ..."      # Query the DB
