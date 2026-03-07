@@ -51,7 +51,7 @@ POSTGRES_DB=validator npm run dump-structure
 
 ## Testing
 
-Tests use **Jest** with **testcontainers** (PostgreSQL 16 Alpine). Docker must be running. On first run, a reusable postgres container starts and loads `structure.sql` as a template DB. Individual tests clone from this template.
+Tests use **Jest** with **testcontainers** (PostgreSQL 16 Alpine). Docker must be running. On first run, a reusable postgres container starts and loads `structure.sql` as a template DB. Individual tests clone from this template. Test files are colocated with source.
 
 Key test infrastructure in `apps/sps-validator/src/__tests__/`:
 - `fixture.ts` - Test fixture with DI container setup
@@ -59,20 +59,16 @@ Key test infrastructure in `apps/sps-validator/src/__tests__/`:
 - `action-fixture.ts` - Action testing helpers
 - `process-op.ts` - Operation processing helpers
 
-Test files are colocated with source (e.g., `delegate_tokens.test.ts` next to `delegate_tokens.ts`).
+The `validator/` library has unit-only tests (no DB). See `validator/CLAUDE.md` for details.
 
 ## Architecture
 
-### Action System
-Actions are the core unit of work. Each action (token transfer, stake, delegate, etc.) is a class in `apps/sps-validator/src/sps/actions/`. Actions are registered via routers (`RouterImpl`, `VirtualRouterImpl`) and dispatched by the block processor.
+See `validator/CLAUDE.md` for detailed architecture: action system, DI pattern, entity/repository pattern, cache/snapshot system, config system, plugin system, and block processing lifecycle.
 
 ### Composition Root
 `apps/sps-validator/src/sps/composition-root.ts` wires everything together using tsyringe DI. The validator library defines abstract tokens; the sps-validator app provides concrete implementations prefixed with `Sps` (e.g., `SpsBalanceRepository`, `SpsBlockProcessor`).
 
-### Block Processing Pipeline
-`EntryPoint` -> `BlockProcessor` -> `OperationFactory` -> `ActionRouter` -> individual actions. Virtual actions (automated/scheduled) use `VirtualPayloadSource`.
-
-### Configuration
+### Configuration (Environment)
 Uses **convict** for environment variable management. See `.env-example` for all available settings. Key env vars: `DB`, `VALIDATOR_ACCOUNT`, `VALIDATOR_KEY`, `CUSTOM_JSON_PREFIX`, `CUSTOM_JSON_ID`.
 
 ## Docker Operations
