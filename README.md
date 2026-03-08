@@ -95,6 +95,18 @@ You should still look through the manual setup steps so you understand how to st
 - Go to the splinterlands license management page here, https://splinterlands.com/dashboard/licenses, and click `STAKE LICENSES`.
 - Once you've staked your licenses, and you have the environment variables set, your node will start sending check ins to prove you are running the software so you can receive rewards.
 
+### Running a Backup Node
+
+If you run multiple nodes for the same validator account, you can use the `VALIDATE_BLOCK_DELAY` environment variable to prevent duplicate block validation submissions. The lead node runs with the default (`VALIDATE_BLOCK_DELAY=0`) and submits validations immediately. Backup nodes run with a higher value (e.g., `VALIDATE_BLOCK_DELAY=12`, which is ~36 seconds). The backup node will check the database before submitting -- if the lead node's validation has already landed on-chain, it skips. If the lead node is down, the backup picks up after the configured delay.
+
+```
+# Lead node (default)
+VALIDATE_BLOCK_DELAY=0
+
+# Backup node (~36s delay)
+VALIDATE_BLOCK_DELAY=12
+```
+
 ### Price Feed
 
 The top validators will be responsible for the SPS price feed inside the validator. The DAO provides a free price feed to the validator network that the validator nodes will use by default. To avoid a single source of truth for the SPS price however, you can purchase API keys to either coingecko or coin market cap and set them in your .env file. If you are not a top validator, you do not have to do this.
