@@ -69,7 +69,7 @@ See `validator/CLAUDE.md` for detailed architecture: action system, DI pattern, 
 `apps/sps-validator/src/sps/composition-root.ts` wires everything together using tsyringe DI. The validator library defines abstract tokens; the sps-validator app provides concrete implementations prefixed with `Sps` (e.g., `SpsBalanceRepository`, `SpsBlockProcessor`).
 
 ### Configuration (Environment)
-Uses **convict** for environment variable management. See `.env-example` for all available settings. Key env vars: `DB`, `VALIDATOR_ACCOUNT`, `VALIDATOR_KEY`, `CUSTOM_JSON_PREFIX`, `CUSTOM_JSON_ID`.
+Uses **convict** for environment variable management. See `.env-example` for all available settings. Key env vars: `DB`, `VALIDATOR_ACCOUNT`, `VALIDATOR_KEY`, `VALIDATE_BLOCK_DELAY`, `CUSTOM_JSON_PREFIX`, `CUSTOM_JSON_ID`.
 
 ## Docker Operations
 
