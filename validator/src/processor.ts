@@ -113,8 +113,9 @@ export class BlockProcessor<T extends SynchronisationConfig> {
                     const delay = this.validatorOpts.validate_block_delay;
                     if (delay > 0) {
                         this.pendingValidations.push({ block_num, l2_block_id, submit_after_block: headBlock + delay });
-                        utils.log(`Block [${block_num}] validation deferred by ${delay} blocks (submit after block ${headBlock + delay}).`);
+                        utils.log(`Block [${block_num}] chosen validator (follower, delay=${delay}). Deferred until block ${headBlock + delay}.`);
                     } else {
+                        utils.log(`Block [${block_num}] chosen validator (leader, delay=0). Submitting immediately.`);
                         this.trySubmitBlockValidation(block_num, l2_block_id);
                     }
                 } else {
@@ -174,9 +175,10 @@ export class BlockProcessor<T extends SynchronisationConfig> {
             }
             const block = await this.blockRepository.getByBlockNum(pending.block_num);
             if (block?.validation_tx) {
-                utils.log(`Block [${pending.block_num}] already validated - skipping.`);
+                utils.log(`Block [${pending.block_num}] leader already validated - follower skipping.`);
                 continue;
             }
+            utils.log(`Block [${pending.block_num}] leader did not validate - follower submitting.`);
             this.trySubmitBlockValidation(pending.block_num, pending.l2_block_id);
         }
     }
