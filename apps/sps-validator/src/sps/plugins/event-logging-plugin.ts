@@ -1,4 +1,4 @@
-import { BlockValidatorInfo, EventLog, log, LogLevel, OperationResult, Plugin } from '@steem-monsters/splinterlands-validator';
+import { BlockValidatorInfo, EventLog, OperationResult, Plugin } from '@steem-monsters/splinterlands-validator';
 
 const VALIDATOR_OVERHEAD_ACTIONS = new Set([
     'validate_block',
@@ -12,6 +12,30 @@ const VALIDATOR_OVERHEAD_ACTIONS = new Set([
     'deactivate_license',
     'price_feed',
 ]);
+
+function jsonlog(...args: Array<string | Record<string, unknown>>): void {
+    const strings: string[] = [];
+    const objects: Record<string, unknown>[] = [];
+    for (const arg of args) {
+        if (typeof arg === 'string') {
+            strings.push(arg);
+        } else {
+            objects.push(arg);
+        }
+    }
+    const entry: Record<string, unknown> = {
+        date: new Date().toISOString(),
+        level: 'debug',
+        service: 'spsdao-validator',
+    };
+    for (const obj of objects) {
+        Object.assign(entry, obj);
+    }
+    if (strings.length > 0) {
+        entry.message = strings.join('\n');
+    }
+    console.log(JSON.stringify(entry));
+}
 
 export class EventLoggingPlugin implements Plugin {
     readonly name = 'EventLoggingPlugin';
@@ -35,7 +59,7 @@ export class EventLoggingPlugin implements Plugin {
 
     private logBlockValidator(blockNumber: number, blockValidator?: BlockValidatorInfo | null): void {
         if (blockValidator) {
-            log(`[validator-assigned] block=${blockNumber} validator=${blockValidator.account_name}`, LogLevel.Info);
+            jsonlog({ action: 'validator-assigned', block: blockNumber, validator: blockValidator.account_name });
         }
     }
 
@@ -56,10 +80,10 @@ export class EventLoggingPlugin implements Plugin {
                         this.logValidatorUpdate(blockNumber, action, op);
                         break;
                     case 'activate_license':
-                        log(`[validator-activate] block=${blockNumber} account=${op.account}`, LogLevel.Info);
+                        jsonlog({ action: 'validator-activate', block: blockNumber, account: op.account });
                         break;
                     case 'deactivate_license':
-                        log(`[validator-deactivate] block=${blockNumber} account=${op.account}`, LogLevel.Info);
+                        jsonlog({ action: 'validator-deactivate', block: blockNumber, account: op.account });
                         break;
                     case 'approve_validator':
                         this.logVote(blockNumber, action, op, 'approve');
@@ -78,10 +102,10 @@ export class EventLoggingPlugin implements Plugin {
         const delta = blockNumber - validatedBlock;
 
         if (action.success) {
-            log(`[validation] block=${blockNumber} account=${op.account} validated_block=${validatedBlock} delta=${delta}`, LogLevel.Info);
+            jsonlog({ action: 'validation', block: blockNumber, account: op.account, validated_block: validatedBlock, delta });
         } else {
-            const errorMsg = action.error?.message ?? 'unknown';
-            log(`[validation-rejected] block=${blockNumber} account=${op.account} attempted_block=${validatedBlock} reason="${errorMsg}"`, LogLevel.Warning);
+            const reason = action.error?.message ?? 'unknown';
+            jsonlog({ action: 'validation-rejected', block: blockNumber, account: op.account, attempted_block: validatedBlock, reason });
         }
     }
 
@@ -90,34 +114,34 @@ export class EventLoggingPlugin implements Plugin {
             return;
         }
         const params = action.params as { account?: string; checked_block?: number; missed_blocks?: number };
-        log(`[validation-missed] block=${blockNumber} account=${params.account} checked_block=${params.checked_block} missed=${params.missed_blocks}`, LogLevel.Warning);
+        jsonlog({ action: 'validation-missed', block: blockNumber, account: params.account, checked_block: params.checked_block, missed: params.missed_blocks });
     }
 
     private logCheckIn(blockNumber: number, action: OperationResult['actions'][number], op: OperationResult): void {
         if (action.success) {
-            log(`[check-in] block=${blockNumber} account=${op.account}`, LogLevel.Info);
+            jsonlog({ action: 'check-in', block: blockNumber, account: op.account });
         } else {
-            const errorMsg = action.error?.message ?? 'unknown';
-            log(`[check-in-rejected] block=${blockNumber} account=${op.account} reason="${errorMsg}"`, LogLevel.Warning);
+            const reason = action.error?.message ?? 'unknown';
+            jsonlog({ action: 'check-in-rejected', block: blockNumber, account: op.account, reason });
         }
     }
 
     private logValidatorUpdate(blockNumber: number, action: OperationResult['actions'][number], op: OperationResult): void {
         const params = action.params as { is_active?: boolean };
         if (params.is_active === true) {
-            log(`[validator-activate] block=${blockNumber} account=${op.account}`, LogLevel.Info);
+            jsonlog({ action: 'validator-activate', block: blockNumber, account: op.account });
         } else if (params.is_active === false) {
-            log(`[validator-deactivate] block=${blockNumber} account=${op.account}`, LogLevel.Info);
+            jsonlog({ action: 'validator-deactivate', block: blockNumber, account: op.account });
         }
     }
 
     private logVote(blockNumber: number, action: OperationResult['actions'][number], op: OperationResult, type: 'approve' | 'unapprove'): void {
         const params = action.params as { account_name?: string };
         if (action.success) {
-            log(`[vote-${type}] block=${blockNumber} voter=${op.account} validator=${params.account_name}`, LogLevel.Info);
+            jsonlog({ action: `vote-${type}`, block: blockNumber, voter: op.account, validator: params.account_name });
         } else {
-            const errorMsg = action.error?.message ?? 'unknown';
-            log(`[vote-${type}-rejected] block=${blockNumber} voter=${op.account} validator=${params.account_name} reason="${errorMsg}"`, LogLevel.Warning);
+            const reason = action.error?.message ?? 'unknown';
+            jsonlog({ action: `vote-${type}-rejected`, block: blockNumber, voter: op.account, validator: params.account_name, reason });
         }
     }
 
@@ -135,6 +159,6 @@ export class EventLoggingPlugin implements Plugin {
         }
 
         const gameActions = totalActions - overheadActions;
-        log(`[block-report] block=${blockNumber} total=${totalActions} game=${gameActions} overhead=${overheadActions}`, LogLevel.Info);
+        jsonlog({ action: 'block-report', block: blockNumber, total: totalActions, game: gameActions, overhead: overheadActions });
     }
 }
