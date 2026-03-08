@@ -59,7 +59,7 @@ export class EventLoggingPlugin implements Plugin {
 
     private logBlockValidator(blockNumber: number, blockValidator?: BlockValidatorInfo | null): void {
         if (blockValidator) {
-            jsonlog({ action: 'validator-assigned', block: blockNumber, validator: blockValidator.account_name });
+            jsonlog({ operation: 'validator-assigned', block: blockNumber, validator: blockValidator.account_name });
         }
     }
 
@@ -80,16 +80,31 @@ export class EventLoggingPlugin implements Plugin {
                         this.logValidatorUpdate(blockNumber, action, op);
                         break;
                     case 'activate_license':
-                        jsonlog({ action: 'validator-activate', block: blockNumber, account: op.account });
+                        jsonlog({ operation: 'validator-activate', block: blockNumber, account: op.account });
                         break;
                     case 'deactivate_license':
-                        jsonlog({ action: 'validator-deactivate', block: blockNumber, account: op.account });
+                        jsonlog({ operation: 'validator-deactivate', block: blockNumber, account: op.account });
                         break;
                     case 'approve_validator':
                         this.logVote(blockNumber, action, op, 'approve');
                         break;
                     case 'unapprove_validator':
                         this.logVote(blockNumber, action, op, 'unapprove');
+                        break;
+                    case 'token_unstaking':
+                        this.logUnstaking(blockNumber, action, op);
+                        break;
+                    case 'claim_pool':
+                        jsonlog({ operation: 'claim-pool', block: blockNumber });
+                        break;
+                    case 'burn':
+                        this.logBurn(blockNumber, action, op);
+                        break;
+                    case 'expire_promises':
+                        jsonlog({ operation: 'expire-promises', block: blockNumber });
+                        break;
+                    case 'expire_check_ins':
+                        jsonlog({ operation: 'expire-check-ins', block: blockNumber });
                         break;
                 }
             }
@@ -102,10 +117,10 @@ export class EventLoggingPlugin implements Plugin {
         const delta = blockNumber - validatedBlock;
 
         if (action.success) {
-            jsonlog({ action: 'validation', block: blockNumber, account: op.account, validated_block: validatedBlock, delta });
+            jsonlog({ operation: 'validation', block: blockNumber, account: op.account, validated_block: validatedBlock, delta });
         } else {
             const reason = action.error?.message ?? 'unknown';
-            jsonlog({ action: 'validation-rejected', block: blockNumber, account: op.account, attempted_block: validatedBlock, reason });
+            jsonlog({ operation: 'validation-rejected', block: blockNumber, account: op.account, attempted_block: validatedBlock, reason });
         }
     }
 
@@ -114,34 +129,48 @@ export class EventLoggingPlugin implements Plugin {
             return;
         }
         const params = action.params as { account?: string; checked_block?: number; missed_blocks?: number };
-        jsonlog({ action: 'validation-missed', block: blockNumber, account: params.account, checked_block: params.checked_block, missed: params.missed_blocks });
+        jsonlog({ operation: 'validation-missed', block: blockNumber, account: params.account, checked_block: params.checked_block, missed: params.missed_blocks });
     }
 
     private logCheckIn(blockNumber: number, action: OperationResult['actions'][number], op: OperationResult): void {
         if (action.success) {
-            jsonlog({ action: 'check-in', block: blockNumber, account: op.account });
+            jsonlog({ operation: 'check-in', block: blockNumber, account: op.account });
         } else {
             const reason = action.error?.message ?? 'unknown';
-            jsonlog({ action: 'check-in-rejected', block: blockNumber, account: op.account, reason });
+            jsonlog({ operation: 'check-in-rejected', block: blockNumber, account: op.account, reason });
         }
     }
 
     private logValidatorUpdate(blockNumber: number, action: OperationResult['actions'][number], op: OperationResult): void {
         const params = action.params as { is_active?: boolean };
         if (params.is_active === true) {
-            jsonlog({ action: 'validator-activate', block: blockNumber, account: op.account });
+            jsonlog({ operation: 'validator-activate', block: blockNumber, account: op.account });
         } else if (params.is_active === false) {
-            jsonlog({ action: 'validator-deactivate', block: blockNumber, account: op.account });
+            jsonlog({ operation: 'validator-deactivate', block: blockNumber, account: op.account });
         }
     }
 
     private logVote(blockNumber: number, action: OperationResult['actions'][number], op: OperationResult, type: 'approve' | 'unapprove'): void {
         const params = action.params as { account_name?: string };
         if (action.success) {
-            jsonlog({ action: `vote-${type}`, block: blockNumber, voter: op.account, validator: params.account_name });
+            jsonlog({ operation: `vote-${type}`, block: blockNumber, voter: op.account, validator: params.account_name });
         } else {
             const reason = action.error?.message ?? 'unknown';
-            jsonlog({ action: `vote-${type}-rejected`, block: blockNumber, voter: op.account, validator: params.account_name, reason });
+            jsonlog({ operation: `vote-${type}-rejected`, block: blockNumber, voter: op.account, validator: params.account_name, reason });
+        }
+    }
+
+    private logUnstaking(blockNumber: number, action: OperationResult['actions'][number], op: OperationResult): void {
+        const params = action.params as { player?: string; unstake_amount?: number; token?: string };
+        if (action.success) {
+            jsonlog({ operation: 'token-unstaking', block: blockNumber, account: params.player ?? op.account, token: params.token, amount: params.unstake_amount });
+        }
+    }
+
+    private logBurn(blockNumber: number, action: OperationResult['actions'][number], op: OperationResult): void {
+        const params = action.params as { account?: string; to?: string; token?: string; qty?: number };
+        if (action.success) {
+            jsonlog({ operation: 'burn', block: blockNumber, account: params.account ?? op.account, token: params.token, qty: params.qty, to: params.to });
         }
     }
 
@@ -159,6 +188,6 @@ export class EventLoggingPlugin implements Plugin {
         }
 
         const gameActions = totalActions - overheadActions;
-        jsonlog({ action: 'block-report', block: blockNumber, total: totalActions, game: gameActions, overhead: overheadActions });
+        jsonlog({ operation: 'block-report', block: blockNumber, total: totalActions, game: gameActions, overhead: overheadActions });
     }
 }
