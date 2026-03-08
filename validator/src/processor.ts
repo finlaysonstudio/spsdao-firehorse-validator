@@ -26,6 +26,7 @@ export type ValidatorOpts = {
     validator_key: string | null;
     version: string;
     validate_block_delay: number;
+    blocks_behind_head: number;
 };
 export const ValidatorOpts: unique symbol = Symbol('ValidatorOpts');
 
@@ -183,10 +184,13 @@ export class BlockProcessor<T extends SynchronisationConfig> {
             return;
         }
         const maxBlockAge = this.watcher.validator?.max_block_age;
-        if (maxBlockAge && delay >= 0.8 * maxBlockAge) {
-            utils.log(`WARNING: VALIDATE_BLOCK_DELAY (${delay}) is >= 80% of max_block_age (${maxBlockAge}). Validations may expire before submission.`);
-        }
         if (maxBlockAge) {
+            const combinedLag = delay + this.validatorOpts.blocks_behind_head;
+            if (combinedLag >= 0.8 * maxBlockAge) {
+                utils.log(
+                    `WARNING: VALIDATE_BLOCK_DELAY (${delay}) + BLOCKS_BEHIND_HEAD (${this.validatorOpts.blocks_behind_head}) = ${combinedLag}, which is >= 80% of max_block_age (${maxBlockAge}). Validations may expire before submission.`,
+                );
+            }
             this.warnedAboutDelay = true;
         }
     }
