@@ -85,6 +85,8 @@ export class EntryPoint<T extends Resolver & Container, S extends Synchronisatio
 
             let event_logs: EventLog[] = [];
             let block_hash = '';
+            let operations: import('./libs/plugin').OperationResult[] = [];
+            let block_validator: import('./libs/plugin').BlockValidatorInfo | null = null;
             try {
                 const prev_block_hash = await this.getBlockHash(block_num - 1);
                 utils.log(`Processing block [${block_num}], Head Block: ${observer.headBlockNum}, Blocks to head: ${observer.headBlockNum - block_num}.`);
@@ -94,6 +96,8 @@ export class EntryPoint<T extends Resolver & Container, S extends Synchronisatio
                 const result = await this.processor.process(block, observer.headBlockNum);
                 block_hash = result.block_hash;
                 event_logs = result.event_logs;
+                operations = result.operations;
+                block_validator = result.block_validator;
 
                 this.snap.commit();
                 // Cache the hashes of the past 20 blocks in memory
@@ -112,7 +116,7 @@ export class EntryPoint<T extends Resolver & Container, S extends Synchronisatio
             utils.log(`Processed block ${block_num} in ${processing_time}ms`, LogLevel.Debug);
             utils.log(`Waited ${start_time - round_finish_time}ms for new block.`, LogLevel.Debug);
 
-            this.pluginDispatcher.dispatch(block_num, event_logs, block_hash, observer.headBlockNum);
+            this.pluginDispatcher.dispatch(block_num, event_logs, block_hash, observer.headBlockNum, operations, block_validator);
 
             round_finish_time = Date.now();
             if (this.shouldStop) {

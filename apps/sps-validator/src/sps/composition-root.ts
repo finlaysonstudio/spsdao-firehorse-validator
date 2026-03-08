@@ -114,6 +114,7 @@ import {
 import { ValidatorPools } from './pools';
 import { ValidatorShop } from './utilities/validator-shop';
 import { KillPlugin } from '../plugins/kill_plugin';
+import { EventLoggingPlugin } from './plugins/event-logging-plugin';
 import { ManualDisposer } from './manual-disposable';
 import { SpsValidatorLicenseManager, ValidatorCheckInPlugin, ValidatorCheckInWatch } from './features/validator';
 import { MissedBlocksOpts, SpsUpdateMissedBlocksSource } from './actions/missed_blocks';
@@ -368,6 +369,8 @@ export class CompositionRoot extends null {
                 if (PriceFeedPlugin.isAvailable() && externalFeeds.length > 0) {
                     builder = builder.addPlugin(container.resolve(PriceFeedPlugin));
                 }
+
+                builder = builder.addPlugin(new EventLoggingPlugin());
 
                 return builder.build();
             },
