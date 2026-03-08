@@ -5,6 +5,7 @@ services:
     build:
       context: ./postgres
       dockerfile: ./Dockerfile
+    command: postgres -c log_min_messages=notice
     ports:
       - "${PUBLISH_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
