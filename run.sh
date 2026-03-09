@@ -149,25 +149,6 @@ snapshot_auto() {
     rm snapshot.sql
     echo "Snapshot zipped."
 
-    echo "Creating slim snapshot"
-    run_psql -c "BEGIN; SELECT snapshot.slimifysnapshot(); COMMIT;"
-
-    echo "Dumping slim snapshot to file"
-    docker_compose exec -e PGPASSWORD="$APP_PASSWORD" pg pg_dump \
-        --no-owner --no-acl \
-        --no-comments --no-publications --no-security-labels \
-        --schema snapshot \
-        --no-subscriptions --no-tablespaces --data-only \
-        --host "127.0.0.1" \
-        --username "$APP_USER" \
-        "${APP_DATABASE}" > slim_snapshot.sql
-
-    sed -i "1s/^/-- to_change:$CHANGE\n/" slim_snapshot.sql
-
-    zip slim_snapshot.zip slim_snapshot.sql
-    rm slim_snapshot.sql
-    echo "Slim snapshot zipped."
-
     echo "Starting validator"
     start "validator-silent"
     echo "Snapshot process complete."
@@ -473,7 +454,7 @@ help() {
     echo "    build [local-snapshot] [no-cache] [skip-snapshot] - runs dl_snapshot + database migrations. local-snapshot uses existing snapshot without prompting. no-cache rebuilds without docker cache. skip-snapshot skips snapshot entirely"
     echo "    dl_snapshot                   - downloads snapshot if it doesn't exists locally"
     echo "    snapshot                      - creates a snapshot of the current database."
-    echo "    snapshot-auto                 - non-interactive: stops validator, creates both snapshots, restarts validator"
+    echo "    snapshot-auto                 - non-interactive: stops validator, creates snapshot, restarts validator"
     echo "    logs                          - trails the last 30 lines of logs"
     echo "    status                        - checks your validator node status and registration status"
     echo "    repartition_tables            - helper command to repartition the partitioned database tables. only needed if upgrading a database from before v1.1.1 or if restoring a snapshot from before v1.1.1"

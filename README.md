@@ -23,7 +23,7 @@ The [installation instructions](INSTALL.md) are the same.
 _Fire Horse Edition_ can be deployed automatically through CI/CD pipelines or other orchestration techniques.
 
 - `run.sh build local-snapshot` runs the build from a local snapshot without user interaction
-- `run.sh snapshot-auto` creates full and slim snapshots without user interaction
+- `run.sh snapshot-auto` creates snapshot without user interaction
 
 In the reference implementation, both creating a snapshot and replaying a snapshot require an interactive shell meaning they cannot be automated.
 
