@@ -88,9 +88,15 @@ export class EventLoggingPlugin implements Plugin {
         }
 
         const elapsed = this.blockStartTime > 0 ? Math.round(performance.now() - this.blockStartTime) : undefined;
-        this.logOperations(blockNumber, operations);
-        this.logBlockReport(blockNumber, operations, blockValidator, elapsed);
-        this.trackAndLogPendingValidations(blockNumber, headBlockNumber, blockValidator);
+        const status = this.getStatus(blockNumber, headBlockNumber);
+        if (status === 'streaming') {
+            this.logOperations(blockNumber, operations);
+        }
+        const delta = status === 'replay' ? headBlockNumber - blockNumber : undefined;
+        this.logBlockReport(blockNumber, operations, blockValidator, elapsed, status, delta);
+        if (status === 'streaming') {
+            this.trackAndLogPendingValidations(blockNumber, headBlockNumber, blockValidator);
+        }
     }
 
     private logOperations(blockNumber: number, operations: OperationResult[]): void {
@@ -204,6 +210,12 @@ export class EventLoggingPlugin implements Plugin {
         }
     }
 
+    private getStatus(blockNumber: number, headBlockNumber: number): 'replay' | 'streaming' {
+        const gap = headBlockNumber - blockNumber;
+        const threshold = this.validatorOpts.blocks_behind_head + 2;
+        return gap > threshold ? 'replay' : 'streaming';
+    }
+
     private trackAndLogPendingValidations(blockNumber: number, headBlockNumber: number, blockValidator?: BlockValidatorInfo | null): void {
         const delay = this.validatorOpts.validate_block_delay;
         if (delay <= 0) {
@@ -234,7 +246,7 @@ export class EventLoggingPlugin implements Plugin {
         }
     }
 
-    private logBlockReport(blockNumber: number, operations: OperationResult[], blockValidator?: BlockValidatorInfo | null, elapsed?: number): void {
+    private logBlockReport(blockNumber: number, operations: OperationResult[], blockValidator?: BlockValidatorInfo | null, elapsed?: number, status?: 'replay' | 'streaming', delta?: number): void {
         const counts = new Map<string, number>();
         let total = 0;
 
@@ -254,6 +266,8 @@ export class EventLoggingPlugin implements Plugin {
         const report: Record<string, unknown> = {
             operation: 'block-report',
             block: blockNumber,
+            status,
+            delta,
             validator: blockValidator?.account_name ?? null,
             total,
             validation: counts.get('validation') ?? 0,
