@@ -370,7 +370,7 @@ export class CompositionRoot extends null {
                     builder = builder.addPlugin(container.resolve(PriceFeedPlugin));
                 }
 
-                builder = builder.addPlugin(new EventLoggingPlugin());
+                builder = builder.addPlugin(new EventLoggingPlugin(container.resolve(ValidatorOpts)));
 
                 return builder.build();
             },

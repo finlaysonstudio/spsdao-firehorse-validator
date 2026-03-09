@@ -1,4 +1,4 @@
-import { BlockValidatorInfo, EventLog, OperationResult, Plugin } from '@steem-monsters/splinterlands-validator';
+import { BlockValidatorInfo, EventLog, OperationResult, Plugin, ValidatorOpts } from '@steem-monsters/splinterlands-validator';
 
 function resolveOperationName(action: OperationResult['actions'][number]): string | undefined {
     switch (action.id) {
@@ -64,6 +64,9 @@ function jsonlog(...args: Array<string | Record<string, unknown>>): void {
 export class EventLoggingPlugin implements Plugin {
     readonly name = 'EventLoggingPlugin';
     private blockStartTime: number = 0;
+    private readonly pendingBlocks: Array<{ block_num: number; submit_after_block: number }> = [];
+
+    constructor(private readonly validatorOpts: ValidatorOpts) {}
 
     async beforeBlockProcessed(_blockNumber: number): Promise<void> {
         this.blockStartTime = performance.now();
@@ -73,7 +76,7 @@ export class EventLoggingPlugin implements Plugin {
         blockNumber: number,
         _eventLogs: EventLog[],
         _blockHash: string,
-        _headBlockNumber: number,
+        headBlockNumber: number,
         operations?: OperationResult[],
         blockValidator?: BlockValidatorInfo | null,
     ): Promise<void> {
@@ -84,6 +87,7 @@ export class EventLoggingPlugin implements Plugin {
         const elapsed = this.blockStartTime > 0 ? Math.round(performance.now() - this.blockStartTime) : undefined;
         this.logOperations(blockNumber, operations);
         this.logBlockReport(blockNumber, operations, blockValidator, elapsed);
+        this.trackAndLogPendingValidations(blockNumber, headBlockNumber, blockValidator);
     }
 
     private logOperations(blockNumber: number, operations: OperationResult[]): void {
@@ -194,6 +198,36 @@ export class EventLoggingPlugin implements Plugin {
         const params = action.params as { account?: string; to?: string; token?: string; qty?: number };
         if (action.success) {
             jsonlog({ operation: 'burn', block: blockNumber, account: params.account ?? op.account, token: params.token, qty: params.qty, to: params.to });
+        }
+    }
+
+    private trackAndLogPendingValidations(blockNumber: number, headBlockNumber: number, blockValidator?: BlockValidatorInfo | null): void {
+        const delay = this.validatorOpts.validate_block_delay;
+        if (delay <= 0) {
+            return;
+        }
+
+        // If we are the chosen validator for this block, track it
+        if (blockValidator && this.validatorOpts.validator_account === blockValidator.account_name) {
+            this.pendingBlocks.push({ block_num: blockNumber, submit_after_block: headBlockNumber + delay });
+        }
+
+        // Build the report from pending blocks that still have remaining countdown
+        const following: string[] = [];
+        const kept: typeof this.pendingBlocks = [];
+        for (const pending of this.pendingBlocks) {
+            const remaining = pending.submit_after_block - headBlockNumber;
+            if (remaining > 0) {
+                following.push(`${pending.block_num}:${remaining}`);
+                kept.push(pending);
+            }
+            // remaining <= 0 means it will be submitted this block — drop from tracking
+        }
+        this.pendingBlocks.length = 0;
+        this.pendingBlocks.push(...kept);
+
+        if (following.length > 0) {
+            jsonlog({ operation: 'validator-report', block: blockNumber, following: following.join(',') });
         }
     }
 
