@@ -65,7 +65,7 @@ export class EventLoggingPlugin implements Plugin {
     readonly name = 'EventLoggingPlugin';
     private readonly enabled: boolean;
     private blockStartTime: number = 0;
-    private readonly pendingBlocks: Array<{ block_num: number; submit_after_block: number }> = [];
+    private readonly pendingBlocks: Array<{ block_num: number; submit_after_block: number; account: string }> = [];
 
     constructor(private readonly validatorOpts: ValidatorOpts) {
         this.enabled = process.env.ENABLE_EVENT_LOGS === 'true';
@@ -95,7 +95,7 @@ export class EventLoggingPlugin implements Plugin {
         const delta = status === 'replay' ? headBlockNumber - blockNumber : undefined;
         this.logBlockReport(blockNumber, operations, blockValidator, elapsed, status, delta);
         if (status === 'streaming') {
-            this.trackAndLogPendingValidations(blockNumber, headBlockNumber, blockValidator);
+            this.trackAndLogPendingValidations(blockNumber, headBlockNumber, operations, blockValidator);
         }
     }
 
@@ -216,7 +216,7 @@ export class EventLoggingPlugin implements Plugin {
         return gap > threshold ? 'replay' : 'streaming';
     }
 
-    private trackAndLogPendingValidations(blockNumber: number, headBlockNumber: number, blockValidator?: BlockValidatorInfo | null): void {
+    private trackAndLogPendingValidations(blockNumber: number, headBlockNumber: number, operations: OperationResult[], blockValidator?: BlockValidatorInfo | null): void {
         const delay = this.validatorOpts.validate_block_delay;
         if (delay <= 0) {
             return;
@@ -224,26 +224,38 @@ export class EventLoggingPlugin implements Plugin {
 
         // If we are the chosen validator for this block, track it
         if (blockValidator && this.validatorOpts.validator_account === blockValidator.account_name) {
-            this.pendingBlocks.push({ block_num: blockNumber, submit_after_block: headBlockNumber + delay });
+            this.pendingBlocks.push({ block_num: blockNumber, submit_after_block: headBlockNumber + delay, account: blockValidator.account_name });
         }
 
-        // Build the report from pending blocks that still have remaining countdown
-        const following: string[] = [];
+        // Collect block numbers that were successfully validated this round
+        const validatedBlocks = new Set<number>();
+        for (const op of operations) {
+            for (const action of op.actions) {
+                if (action.id === 'validate_block' && action.success) {
+                    const params = action.params as { block_num?: number };
+                    if (params.block_num) {
+                        validatedBlocks.add(params.block_num);
+                    }
+                }
+            }
+        }
+
+        // Log and filter pending blocks
         const kept: typeof this.pendingBlocks = [];
         for (const pending of this.pendingBlocks) {
+            // Drop blocks that were already validated on-chain
+            if (validatedBlocks.has(pending.block_num)) {
+                continue;
+            }
             const remaining = pending.submit_after_block - headBlockNumber;
             if (remaining > 0) {
-                following.push(`${pending.block_num}:${remaining}`);
+                jsonlog({ operation: 'follower-report', block: blockNumber, account: pending.account, delta: remaining, validated_block: pending.block_num });
                 kept.push(pending);
             }
             // remaining <= 0 means it will be submitted this block — drop from tracking
         }
         this.pendingBlocks.length = 0;
         this.pendingBlocks.push(...kept);
-
-        if (following.length > 0) {
-            jsonlog({ operation: 'validator-report', block: blockNumber, following: following.join(',') });
-        }
     }
 
     private logBlockReport(blockNumber: number, operations: OperationResult[], blockValidator?: BlockValidatorInfo | null, elapsed?: number, status?: 'replay' | 'streaming', delta?: number): void {
