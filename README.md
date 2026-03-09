@@ -95,7 +95,7 @@ In general, both the reference implementation and _Fire Horse Edition_ operate f
 
 The primary bottleneck is the storage layer. In specific, Postgres was chosen as the persistence layer. This is beneficial for providing a user interface with block explorer and other capabilities, but not strictly required for operating a lightweight node on minimal resources.
 
-A separate "tiny validator" is proposed that only performs validation and check-in operations but does not rely on Postgres. The goal is a separate client with a matching hash algorithm. The first prototype was able to build off and validate blocks from a 130 MB seed, a 10x improvement over the 1.3 GB postgres snapshots.
+A separate "tiny validator" is proposed that only performs validation and check-in operations but does not rely on Postgres. The goal is a separate client with a matching hash algorithm. The first prototype was able to build and validate blocks from a 130 MB seed, a 10x improvement over the 1.3 GB postgres snapshots.
 
 Development, and especially block hash testing, of the tiny validator required more block-level visibility of the reference implementation. That, combined with improvements to automation, led to _Fire Horse Edition_.
 
