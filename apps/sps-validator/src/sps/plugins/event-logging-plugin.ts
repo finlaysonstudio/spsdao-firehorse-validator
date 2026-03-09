@@ -1,17 +1,41 @@
 import { BlockValidatorInfo, EventLog, OperationResult, Plugin } from '@steem-monsters/splinterlands-validator';
 
-const VALIDATOR_OVERHEAD_ACTIONS = new Set([
-    'validate_block',
-    'check_in_validator',
-    'update_missed_blocks',
-    'expire_check_ins',
-    'approve_validator',
-    'unapprove_validator',
-    'update_validator',
-    'activate_license',
-    'deactivate_license',
-    'price_feed',
-]);
+function resolveOperationName(action: OperationResult['actions'][number]): string | undefined {
+    switch (action.id) {
+        case 'validate_block':
+            return action.success ? 'validation' : 'validation-rejected';
+        case 'update_missed_blocks':
+            return action.success ? 'validation-missed' : undefined;
+        case 'check_in_validator':
+            return action.success ? 'check-in' : 'check-in-rejected';
+        case 'update_validator': {
+            const params = action.params as { is_active?: boolean };
+            if (params.is_active === true) return 'validator-activate';
+            if (params.is_active === false) return 'validator-deactivate';
+            return undefined;
+        }
+        case 'activate_license':
+            return 'validator-activate';
+        case 'deactivate_license':
+            return 'validator-deactivate';
+        case 'approve_validator':
+            return action.success ? 'vote-approve' : 'vote-approve-rejected';
+        case 'unapprove_validator':
+            return action.success ? 'vote-unapprove' : 'vote-unapprove-rejected';
+        case 'token_unstaking':
+            return action.success ? 'token-unstaking' : undefined;
+        case 'claim_pool':
+            return 'claim-pool';
+        case 'burn':
+            return action.success ? 'burn' : undefined;
+        case 'expire_promises':
+            return 'expire-promises';
+        case 'expire_check_ins':
+            return 'expire-check-ins';
+        default:
+            return undefined;
+    }
+}
 
 function jsonlog(...args: Array<string | Record<string, unknown>>): void {
     const strings: string[] = [];
@@ -39,6 +63,11 @@ function jsonlog(...args: Array<string | Record<string, unknown>>): void {
 
 export class EventLoggingPlugin implements Plugin {
     readonly name = 'EventLoggingPlugin';
+    private blockStartTime: number = 0;
+
+    async beforeBlockProcessed(_blockNumber: number): Promise<void> {
+        this.blockStartTime = performance.now();
+    }
 
     async onBlockProcessed(
         blockNumber: number,
@@ -52,15 +81,9 @@ export class EventLoggingPlugin implements Plugin {
             return;
         }
 
-        this.logBlockValidator(blockNumber, blockValidator);
+        const elapsed = this.blockStartTime > 0 ? Math.round(performance.now() - this.blockStartTime) : undefined;
         this.logOperations(blockNumber, operations);
-        this.logBlockReport(blockNumber, operations);
-    }
-
-    private logBlockValidator(blockNumber: number, blockValidator?: BlockValidatorInfo | null): void {
-        if (blockValidator) {
-            jsonlog({ operation: 'validator-assigned', block: blockNumber, validator: blockValidator.account_name });
-        }
+        this.logBlockReport(blockNumber, operations, blockValidator, elapsed);
     }
 
     private logOperations(blockNumber: number, operations: OperationResult[]): void {
@@ -174,20 +197,39 @@ export class EventLoggingPlugin implements Plugin {
         }
     }
 
-    private logBlockReport(blockNumber: number, operations: OperationResult[]): void {
-        let totalActions = 0;
-        let overheadActions = 0;
+    private logBlockReport(blockNumber: number, operations: OperationResult[], blockValidator?: BlockValidatorInfo | null, elapsed?: number): void {
+        const counts = new Map<string, number>();
+        let total = 0;
 
         for (const op of operations) {
             for (const action of op.actions) {
-                totalActions++;
-                if (VALIDATOR_OVERHEAD_ACTIONS.has(action.id)) {
-                    overheadActions++;
+                total++;
+                const name = resolveOperationName(action);
+                if (name) {
+                    counts.set(name, (counts.get(name) ?? 0) + 1);
                 }
             }
         }
 
-        const gameActions = totalActions - overheadActions;
-        jsonlog({ operation: 'block-report', block: blockNumber, total: totalActions, game: gameActions, overhead: overheadActions });
+        const blockReward = operations[0]?.actions[0]?.op.block_reward;
+        const reward = blockReward !== 0 && blockReward ? blockReward[0] : 0;
+
+        const report: Record<string, unknown> = {
+            operation: 'block-report',
+            block: blockNumber,
+            validator: blockValidator?.account_name ?? null,
+            total,
+            validation: counts.get('validation') ?? 0,
+            reward,
+            ms: elapsed,
+        };
+
+        for (const [name, count] of counts) {
+            if (name !== 'validation') {
+                report[name] = count;
+            }
+        }
+
+        jsonlog(report);
     }
 }
