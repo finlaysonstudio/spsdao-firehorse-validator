@@ -63,10 +63,13 @@ function jsonlog(...args: Array<string | Record<string, unknown>>): void {
 
 export class EventLoggingPlugin implements Plugin {
     readonly name = 'EventLoggingPlugin';
+    private readonly enabled: boolean;
     private blockStartTime: number = 0;
     private readonly pendingBlocks: Array<{ block_num: number; submit_after_block: number }> = [];
 
-    constructor(private readonly validatorOpts: ValidatorOpts) {}
+    constructor(private readonly validatorOpts: ValidatorOpts) {
+        this.enabled = process.env.ENABLE_EVENT_LOGS === 'true';
+    }
 
     async beforeBlockProcessed(_blockNumber: number): Promise<void> {
         this.blockStartTime = performance.now();
@@ -80,7 +83,7 @@ export class EventLoggingPlugin implements Plugin {
         operations?: OperationResult[],
         blockValidator?: BlockValidatorInfo | null,
     ): Promise<void> {
-        if (!operations) {
+        if (!this.enabled || !operations) {
             return;
         }
 
