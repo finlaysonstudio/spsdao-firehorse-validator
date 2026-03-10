@@ -206,6 +206,12 @@ const schema = {
         default: null as null | string,
         env: 'VALIDATOR_KEY',
     },
+    validate_block_delay: {
+        doc: 'Number of blocks to delay before submitting block validation. Use 0 for lead node, higher values for backup nodes.',
+        format: 'nat',
+        default: 0,
+        env: 'VALIDATE_BLOCK_DELAY',
+    },
     socket_url: {
         format: 'websocket_url',
         nullable: true,

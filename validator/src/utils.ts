@@ -1,4 +1,5 @@
 const logging_level = process.env.logging_level ? parseInt(process.env.logging_level) : null;
+const enable_default_logs = process.env.ENABLE_DEFAULT_LOGS !== 'false';
 const version = process.env.VERSION || 'development';
 
 export enum LogLevel {
@@ -13,6 +14,7 @@ type LogColors = keyof typeof log_colors;
 
 // Logging levels: 1 = Error, 2 = Warning, 3 = Info, 4 = Debug
 export function log(msg: string, level: LogLevel = LogLevel.None, color: LogColors | null = null) {
+    if (!enable_default_logs) return;
     if (color && log_colors[color]) msg = log_colors[color] + msg + log_colors.Reset;
 
     if (level <= (logging_level || 5)) console.log(`[${version}] ${new Date().toLocaleString()} - ${msg}`);

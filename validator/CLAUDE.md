@@ -89,7 +89,7 @@ export const ValidatorWatch: unique symbol = Symbol('ValidatorWatch');
 1. `EntryPoint` is constructed with all dependencies (not self-wiring)
 2. `preflightCheck()` -- validates DB tables exist, primes caches (`Primer`), connects socket, commits initial snapshot
 3. `start()` -- begins streaming blocks from Hive, enables API
-4. Block loop: stream block -> process (virtual ops, then real ops, within a DB transaction) -> commit snapshot -> dispatch plugins -> repeat
+4. Block loop: stream block -> process (virtual ops, then real ops, within a DB transaction) -> drain pending validations -> commit snapshot -> dispatch plugins -> repeat
 5. On error: rollback snapshot, clear socket, re-throw (exits process)
 
 ## Plugin System
@@ -121,3 +121,4 @@ export const ValidatorWatch: unique symbol = Symbol('ValidatorWatch');
 - **Block reward calculation** has two modes: `per_block` (decreasing over time) and `per_block_capped` (dynamic based on reward pool balance).
 - **`EventLog`** is the standard return type from action processing. It captures table name + data + event type (INSERT/UPDATE/DELETE). Used for plugin dispatch and websocket notifications.
 - **Posting auth vs active auth**: `posting_auth_actions` whitelist in `src/entities/operation.ts` determines which actions can use posting authority. Anything not listed requires active auth.
+- **Block validation delay** (`VALIDATE_BLOCK_DELAY`): When running multiple nodes for the same validator account, `BlockProcessor` supports delaying block validation submission by N blocks. The lead node runs with delay=0 (immediate, default). A backup node runs with a higher delay (e.g., 12 blocks / ~36s) and checks the DB before submitting -- if the block was already validated on-chain, it skips. Pending validations are stored in an in-memory queue (`pendingValidations`) and drained after each block's DB transaction commits.

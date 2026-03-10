@@ -25,6 +25,8 @@ export type ValidatorOpts = {
     validator_account: string | null;
     validator_key: string | null;
     version: string;
+    validate_block_delay: number;
+    blocks_behind_head: number;
 };
 export const ValidatorOpts: unique symbol = Symbol('ValidatorOpts');
 
@@ -38,6 +40,9 @@ export class BlockProcessor<T extends SynchronisationConfig> {
     get validateBlockRewardAccount(): string | null {
         return null;
     }
+
+    private readonly pendingValidations: Array<{ block_num: number; l2_block_id: string; submit_after_block: number }> = [];
+    private warnedAboutDelay = false;
 
     public constructor(
         // TODO: way too many params/responsibilities
@@ -57,11 +62,14 @@ export class BlockProcessor<T extends SynchronisationConfig> {
         private readonly special_ops: Map<string, string> = new Map(),
     ) {}
 
-    public async process(block: NBlock, headBlock: number): Promise<{ block_hash: string; event_logs: EventLog[]; reward: payout }> {
+    public async process(
+        block: NBlock,
+        headBlock: number,
+    ): Promise<{ block_hash: string; event_logs: EventLog[]; reward: payout; operations: Operation[]; block_validator: ValidatorEntry | null }> {
         const operations: Operation[] = [];
         const transformedBlock = this.transformBlock(block);
         await this.sync.waitToProcessBlock(transformedBlock.block_num);
-        const { block_hash, reward } = await this.trxStarter.withTransaction(async (trx) => {
+        const { block_hash, reward, block_validator } = await this.trxStarter.withTransaction(async (trx) => {
             const reward = await this.calculateBlockReward(transformedBlock);
             // TODO: procesVirtualOps
             const wrappedPayloads = await this.topLevelVirtualPayloadSource.process(transformedBlock, trx);
@@ -102,19 +110,31 @@ export class BlockProcessor<T extends SynchronisationConfig> {
             if (this.isChosenValidator(validator)) {
                 const maxBlockAge = this.watcher.validator?.max_block_age;
                 if (maxBlockAge && headBlock - maxBlockAge <= block_num) {
-                    this.trySubmitBlockValidation(block_num, l2_block_id);
+                    const delay = this.validatorOpts.validate_block_delay;
+                    if (delay > 0) {
+                        this.pendingValidations.push({ block_num, l2_block_id, submit_after_block: headBlock + delay });
+                        utils.log(`Block [${block_num}] chosen validator (follower, delay=${delay}). Deferred until block ${headBlock + delay}.`);
+                    } else {
+                        utils.log(`Block [${block_num}] chosen validator (leader, delay=0). Submitting immediately.`);
+                        this.trySubmitBlockValidation(block_num, l2_block_id);
+                    }
                 } else {
                     utils.log(`Block [${block_num}] is too old to validate - not submitting validate tx.`);
                 }
             }
 
-            return { block_hash: l2_block_id, reward };
+            return { block_hash: l2_block_id, reward, block_validator: validator };
         });
+
+        this.checkDelayWarning();
+        await this.processPendingValidations(headBlock);
 
         return {
             event_logs: operations.flatMap((x) => x.actions.flatMap((x) => x.result).filter(isDefined)),
             block_hash,
             reward,
+            operations,
+            block_validator,
         };
     }
 
@@ -141,6 +161,45 @@ export class BlockProcessor<T extends SynchronisationConfig> {
             }
         }
         utils.log(`Failed to submit block validation for block [${block_num}] with hash [${l2_block_id}] after ${maxAttempts} attempts.`);
+    }
+
+    private async processPendingValidations(headBlock: number): Promise<void> {
+        const maxBlockAge = this.watcher.validator?.max_block_age;
+        const ready = this.pendingValidations.filter((p) => headBlock >= p.submit_after_block);
+        for (const pending of ready) {
+            const idx = this.pendingValidations.indexOf(pending);
+            this.pendingValidations.splice(idx, 1);
+            if (maxBlockAge && headBlock - maxBlockAge > pending.block_num) {
+                utils.log(`Block [${pending.block_num}] is too old to validate after delay - skipping.`);
+                continue;
+            }
+            const block = await this.blockRepository.getByBlockNum(pending.block_num);
+            if (block?.validation_tx) {
+                utils.log(`Block [${pending.block_num}] leader already validated - follower skipping.`);
+                continue;
+            }
+            utils.log(`Block [${pending.block_num}] leader did not validate - follower submitting.`);
+            this.trySubmitBlockValidation(pending.block_num, pending.l2_block_id);
+        }
+    }
+
+    private checkDelayWarning(): void {
+        if (this.warnedAboutDelay) return;
+        const delay = this.validatorOpts.validate_block_delay;
+        if (delay <= 0) {
+            this.warnedAboutDelay = true;
+            return;
+        }
+        const maxBlockAge = this.watcher.validator?.max_block_age;
+        if (maxBlockAge) {
+            const combinedLag = delay + this.validatorOpts.blocks_behind_head;
+            if (combinedLag >= 0.8 * maxBlockAge) {
+                utils.log(
+                    `WARNING: VALIDATE_BLOCK_DELAY (${delay}) + BLOCKS_BEHIND_HEAD (${this.validatorOpts.blocks_behind_head}) = ${combinedLag}, which is >= 80% of max_block_age (${maxBlockAge}). Validations may expire before submission.`,
+                );
+            }
+            this.warnedAboutDelay = true;
+        }
     }
 
     private isChosenValidator(validator: ValidatorEntry | null): boolean {
