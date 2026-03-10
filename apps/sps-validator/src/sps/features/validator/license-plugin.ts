@@ -18,6 +18,7 @@ export class ValidatorCheckInPlugin implements Plugin, Prime {
     private lastCheckInBlock: number | undefined;
     private nextCheckInBlock: number | undefined;
     private lastCheckInAccount: string | undefined;
+    private pendingCheckInConfirmation = false;
 
     constructor(
         @inject(SpsValidatorCheckInRepository)
@@ -88,6 +89,18 @@ export class ValidatorCheckInPlugin implements Plugin, Prime {
         }
         const rewardAccount = validator.reward_account ?? this.validatorAccount;
 
+        // After submitting a check-in, wait for chain state to confirm it and recompute from actual last_check_in_block_num
+        if (this.pendingCheckInConfirmation) {
+            const confirmedCheckIn = await this.checkInRepository.getByAccount(rewardAccount);
+            if (confirmedCheckIn && confirmedCheckIn.last_check_in_block_num > (this.lastCheckInBlock ?? 0)) {
+                this.lastCheckInBlock = confirmedCheckIn.last_check_in_block_num;
+                this.nextCheckInBlock = this.getNextCheckInBlock(confirmedCheckIn.last_check_in_block_num, rewardAccount);
+                this.pendingCheckInConfirmation = false;
+                log(`Check-in confirmed at block ${confirmedCheckIn.last_check_in_block_num}. Next check in block: ${this.nextCheckInBlock}`, LogLevel.Debug);
+            }
+            return;
+        }
+
         // determine if we should check in (do we have staked licenses?). if we don't, we'll try again in the next block
         const { can_check_in } = await this.licenseManager.getCheckIn(rewardAccount, blockNumber);
         if (!can_check_in) {
@@ -125,15 +138,15 @@ export class ValidatorCheckInPlugin implements Plugin, Prime {
             log(`Leader missed check-in window. Follower stepping in at block ${blockNumber}.`, LogLevel.Info);
         }
 
-        // plugins are run asynchronously, so we need to set nextCheckInBlock before calling into async code
-        this.nextCheckInBlock = this.getNextCheckInBlock(blockNumber, rewardAccount);
+        // Prevent re-submission while awaiting async broadcast
+        this.nextCheckInBlock = blockNumber + this.checkInWatcher.validator_check_in!.check_in_interval_blocks;
         this.lastCheckInAccount = rewardAccount;
 
         // Check in
         const hash = this.licenseManager.getCheckInHash(blockHash, rewardAccount);
         try {
             const confirmation = await this.hive.submitCheckIn(blockNumber, hash, config.version);
-            this.lastCheckInBlock = blockNumber;
+            this.pendingCheckInConfirmation = true;
             log(`Checked in at block ${blockNumber}. trx_id: ${confirmation.id}`, LogLevel.Info);
         } catch (err) {
             log(`Failed to check in at block ${blockNumber}: ${err}`, LogLevel.Error);
