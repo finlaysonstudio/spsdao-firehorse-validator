@@ -18,6 +18,7 @@ import { inject, injectable } from 'tsyringe';
 import { SpsSynchronisationClosure, SpsSynchronisationConfig } from './sync';
 import { TransitionManager } from './features/transition';
 import { VALIDATE_BLOCK_REWARD_ACCOUNT } from './actions/validator/validate_block';
+import { jsonlog } from './plugins/jsonlog';
 
 @injectable()
 export class SpsBlockProcessor extends BlockProcessor<SpsSynchronisationConfig> {
@@ -106,5 +107,10 @@ export class SpsBlockProcessor extends BlockProcessor<SpsSynchronisationConfig> 
             );
         }
         return super.transformBlock(block);
+    }
+
+    protected override onValidationSubmitted(block_num: number, _l2_block_id: string, validator_account: string): void {
+        if (process.env.ENABLE_EVENT_LOGS !== 'true') return;
+        jsonlog({ operation: 'submit-validation', block: null, account: validator_account, validated_block: block_num });
     }
 }

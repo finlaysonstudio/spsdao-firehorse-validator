@@ -146,12 +146,17 @@ export class BlockProcessor<T extends SynchronisationConfig> {
         return block;
     }
 
+    protected onValidationSubmitted(_block_num: number, _l2_block_id: string, _validator_account: string): void {
+        // Override in subclass to react to validation submission
+    }
+
     private async trySubmitBlockValidation(block_num: number, l2_block_id: string, attempts = 5): Promise<void> {
         const maxAttempts = attempts;
         while (attempts > 0) {
             try {
                 await this.hive.submitBlockValidation(block_num, l2_block_id, this.validatorOpts.version);
                 utils.log(`Submitted block validation for block [${block_num}] with hash [${l2_block_id}]`);
+                this.onValidationSubmitted(block_num, l2_block_id, this.validatorOpts.validator_account!);
                 return;
             } catch (e) {
                 utils.log(`Failed to submit block validation for block [${block_num}] with hash [${l2_block_id}]. Retrying...`);
