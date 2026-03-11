@@ -41,7 +41,7 @@ function resolveOperationName(action: OperationResult['actions'][number]): strin
 export class EventLoggingPlugin implements Plugin {
     readonly name = 'EventLoggingPlugin';
     private readonly enabled: boolean;
-    private blockStartTime: number = 0;
+    private blockStartTime = 0;
     private readonly pendingBlocks: Array<{ block_num: number; submit_after_block: number; account: string }> = [];
 
     constructor(private readonly validatorOpts: ValidatorOpts) {
@@ -236,7 +236,14 @@ export class EventLoggingPlugin implements Plugin {
         this.pendingBlocks.push(...kept);
     }
 
-    private logBlockReport(blockNumber: number, operations: OperationResult[], blockValidator?: BlockValidatorInfo | null, elapsed?: number, status?: 'replay' | 'streaming', delta?: number): void {
+    private logBlockReport(
+        blockNumber: number,
+        operations: OperationResult[],
+        blockValidator?: BlockValidatorInfo | null,
+        elapsed?: number,
+        status?: 'replay' | 'streaming',
+        delta?: number,
+    ): void {
         const counts = new Map<string, number>();
         let total = 0;
 
