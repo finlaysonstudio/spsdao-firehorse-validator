@@ -146,7 +146,7 @@ export class BlockProcessor<T extends SynchronisationConfig> {
         return block;
     }
 
-    protected onValidationSubmitted(_block_num: number, _l2_block_id: string, _validator_account: string): void {
+    protected onValidationSubmitted(_block_num: number, _l2_block_id: string, _validator_account: string, _role: 'leader' | 'follower'): void {
         // Override in subclass to react to validation submission
     }
 
@@ -156,7 +156,7 @@ export class BlockProcessor<T extends SynchronisationConfig> {
             try {
                 await this.hive.submitBlockValidation(block_num, l2_block_id, this.validatorOpts.version);
                 utils.log(`Submitted block validation for block [${block_num}] with hash [${l2_block_id}]`);
-                this.onValidationSubmitted(block_num, l2_block_id, this.validatorOpts.validator_account!);
+                this.onValidationSubmitted(block_num, l2_block_id, this.validatorOpts.validator_account!, this.validatorOpts.validate_block_delay > 0 ? 'follower' : 'leader');
                 return;
             } catch (e) {
                 utils.log(`Failed to submit block validation for block [${block_num}] with hash [${l2_block_id}]. Retrying...`);
