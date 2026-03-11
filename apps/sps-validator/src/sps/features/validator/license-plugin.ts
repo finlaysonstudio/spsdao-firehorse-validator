@@ -1,5 +1,6 @@
 import { BlockRepository, EventLog, HiveClient, LogLevel, Plugin, Prime, Trx, ValidatorRepository, log } from '@steem-monsters/splinterlands-validator';
 import { inject, singleton } from 'tsyringe';
+import { sha256 } from 'js-sha256';
 import config from '../../convict-config';
 import { SpsValidatorCheckInRepository } from '../../entities/validator/validator_check_in';
 import { ValidatorCheckInWatch } from './config';
@@ -17,6 +18,7 @@ export class ValidatorCheckInPlugin implements Plugin, Prime {
     private lastCheckInBlock: number | undefined;
     private nextCheckInBlock: number | undefined;
     private lastCheckInAccount: string | undefined;
+    private pendingCheckInConfirmation = false;
 
     constructor(
         @inject(SpsValidatorCheckInRepository)
@@ -34,7 +36,7 @@ export class ValidatorCheckInPlugin implements Plugin, Prime {
     ) {
         this.validatorAccount = config.validator_account;
         this.checkInWatcher.addValidatorCheckInWatcher(this.CHANGE_KEY, () => {
-            this.nextCheckInBlock = this.lastCheckInBlock ? this.getNextCheckInBlock(this.lastCheckInBlock) : undefined;
+            this.nextCheckInBlock = this.lastCheckInBlock && this.lastCheckInAccount ? this.getNextCheckInBlock(this.lastCheckInBlock, this.lastCheckInAccount) : undefined;
         });
     }
 
@@ -55,8 +57,16 @@ export class ValidatorCheckInPlugin implements Plugin, Prime {
         const rewardAccount = validator ? validator?.reward_account ?? this.validatorAccount : undefined;
         const checkIn = rewardAccount ? await this.checkInRepository.getByAccount(rewardAccount, trx) : undefined;
         this.lastCheckInBlock = checkIn ? checkIn.last_check_in_block_num : undefined;
-        this.nextCheckInBlock = this.lastCheckInBlock ? this.getNextCheckInBlock(this.lastCheckInBlock) : undefined;
-        log(`Next check in block: ${this.nextCheckInBlock ?? 'asap'}`, LogLevel.Info);
+        this.lastCheckInAccount = rewardAccount;
+        this.nextCheckInBlock = this.lastCheckInBlock && rewardAccount ? this.getNextCheckInBlock(this.lastCheckInBlock, rewardAccount) : undefined;
+
+        const isFollower = config.validate_block_delay > 0;
+        if (isFollower && this.nextCheckInBlock) {
+            const followerTriggerBlock = this.nextCheckInBlock + config.validate_block_delay;
+            log(`Follower mode: will check in at block ${followerTriggerBlock} (leader target: ${this.nextCheckInBlock}, delay: ${config.validate_block_delay})`, LogLevel.Info);
+        } else {
+            log(`Next check in block: ${this.nextCheckInBlock ?? 'asap'}`, LogLevel.Info);
+        }
     }
 
     static isAvailable() {
@@ -79,6 +89,18 @@ export class ValidatorCheckInPlugin implements Plugin, Prime {
         }
         const rewardAccount = validator.reward_account ?? this.validatorAccount;
 
+        // After submitting a check-in, wait for chain state to confirm it and recompute from actual last_check_in_block_num
+        if (this.pendingCheckInConfirmation) {
+            const confirmedCheckIn = await this.checkInRepository.getByAccount(rewardAccount);
+            if (confirmedCheckIn && confirmedCheckIn.last_check_in_block_num > (this.lastCheckInBlock ?? 0)) {
+                this.lastCheckInBlock = confirmedCheckIn.last_check_in_block_num;
+                this.nextCheckInBlock = this.getNextCheckInBlock(confirmedCheckIn.last_check_in_block_num, rewardAccount);
+                this.pendingCheckInConfirmation = false;
+                log(`Check-in confirmed at block ${confirmedCheckIn.last_check_in_block_num}. Next check in block: ${this.nextCheckInBlock}`, LogLevel.Debug);
+            }
+            return;
+        }
+
         // determine if we should check in (do we have staked licenses?). if we don't, we'll try again in the next block
         const { can_check_in } = await this.licenseManager.getCheckIn(rewardAccount, blockNumber);
         if (!can_check_in) {
@@ -94,15 +116,37 @@ export class ValidatorCheckInPlugin implements Plugin, Prime {
             return;
         }
 
-        // plugins are run asynchronously, so we need to set nextCheckInBlock before calling into async code
-        this.nextCheckInBlock = this.getNextCheckInBlock(blockNumber);
+        // Leader/follower coordination
+        const isFollower = config.validate_block_delay > 0;
+        if (isFollower) {
+            const followerTriggerBlock = this.nextCheckInBlock ? this.nextCheckInBlock + config.validate_block_delay : config.validate_block_delay;
+            if (blockNumber < followerTriggerBlock) {
+                log(`Follower waiting for leader. Current block: ${blockNumber}, trigger block: ${followerTriggerBlock}`, LogLevel.Debug);
+                return;
+            }
+
+            // Re-query DB to check if leader already checked in
+            const freshCheckIn = await this.checkInRepository.getByAccount(rewardAccount);
+            if (freshCheckIn && freshCheckIn.last_check_in_block_num > (this.lastCheckInBlock ?? 0)) {
+                log(`Leader already checked in at block ${freshCheckIn.last_check_in_block_num}. Skipping follower check-in.`, LogLevel.Debug);
+                this.lastCheckInBlock = freshCheckIn.last_check_in_block_num;
+                this.nextCheckInBlock = this.getNextCheckInBlock(freshCheckIn.last_check_in_block_num, rewardAccount);
+                this.lastCheckInAccount = rewardAccount;
+                return;
+            }
+
+            log(`Leader missed check-in window. Follower stepping in at block ${blockNumber}.`, LogLevel.Info);
+        }
+
+        // Prevent re-submission while awaiting async broadcast
+        this.nextCheckInBlock = blockNumber + this.checkInWatcher.validator_check_in!.check_in_interval_blocks;
         this.lastCheckInAccount = rewardAccount;
 
         // Check in
         const hash = this.licenseManager.getCheckInHash(blockHash, rewardAccount);
         try {
             const confirmation = await this.hive.submitCheckIn(blockNumber, hash, config.version);
-            this.lastCheckInBlock = blockNumber;
+            this.pendingCheckInConfirmation = true;
             log(`Checked in at block ${blockNumber}. trx_id: ${confirmation.id}`, LogLevel.Info);
         } catch (err) {
             log(`Failed to check in at block ${blockNumber}: ${err}`, LogLevel.Error);
@@ -111,10 +155,15 @@ export class ValidatorCheckInPlugin implements Plugin, Prime {
         }
     }
 
-    private getNextCheckInBlock(last_check_in_block_num: number): number {
+    private getDeterministicJitter(account: string, lastCheckInBlock: number, windowSize: number): number {
+        const hash = sha256(`${account}:${lastCheckInBlock}`);
+        return parseInt(hash.substring(0, 8), 16) % windowSize;
+    }
+
+    private getNextCheckInBlock(last_check_in_block_num: number, account: string): number {
         // Check in within the first half of the window, to give us time to recover if the validator fails.
         const window = Math.floor(this.checkInWatcher.validator_check_in!.check_in_window_blocks / 2);
-        const blocks = this.checkInWatcher.validator_check_in!.check_in_interval_blocks + Math.floor(Math.random() * window);
-        return last_check_in_block_num + blocks;
+        const jitter = this.getDeterministicJitter(account, last_check_in_block_num, window);
+        return last_check_in_block_num + this.checkInWatcher.validator_check_in!.check_in_interval_blocks + jitter;
     }
 }

@@ -1,4 +1,5 @@
 import { BlockValidatorInfo, EventLog, OperationResult, Plugin, ValidatorOpts } from '@steem-monsters/splinterlands-validator';
+import { jsonlog } from './jsonlog';
 
 function resolveOperationName(action: OperationResult['actions'][number]): string | undefined {
     switch (action.id) {
@@ -37,34 +38,10 @@ function resolveOperationName(action: OperationResult['actions'][number]): strin
     }
 }
 
-function jsonlog(...args: Array<string | Record<string, unknown>>): void {
-    const strings: string[] = [];
-    const objects: Record<string, unknown>[] = [];
-    for (const arg of args) {
-        if (typeof arg === 'string') {
-            strings.push(arg);
-        } else {
-            objects.push(arg);
-        }
-    }
-    const entry: Record<string, unknown> = {
-        date: new Date().toISOString(),
-        level: 'debug',
-        service: 'spsdao-validator',
-    };
-    for (const obj of objects) {
-        Object.assign(entry, obj);
-    }
-    if (strings.length > 0) {
-        entry.message = strings.join('\n');
-    }
-    console.log(JSON.stringify(entry));
-}
-
 export class EventLoggingPlugin implements Plugin {
     readonly name = 'EventLoggingPlugin';
     private readonly enabled: boolean;
-    private blockStartTime: number = 0;
+    private blockStartTime = 0;
     private readonly pendingBlocks: Array<{ block_num: number; submit_after_block: number; account: string }> = [];
 
     constructor(private readonly validatorOpts: ValidatorOpts) {
@@ -157,7 +134,7 @@ export class EventLoggingPlugin implements Plugin {
             jsonlog({ operation: 'validation', block: blockNumber, validator, account: op.account, validated_block: validatedBlock, delta });
         } else {
             const reason = action.error?.message ?? 'unknown';
-            jsonlog({ operation: 'validation-rejected', block: blockNumber, validator, account: op.account, attempted_block: validatedBlock, reason });
+            jsonlog({ operation: 'validation-rejected', block: blockNumber, validator, account: op.account, validated_block: validatedBlock, reason });
         }
     }
 
@@ -259,7 +236,14 @@ export class EventLoggingPlugin implements Plugin {
         this.pendingBlocks.push(...kept);
     }
 
-    private logBlockReport(blockNumber: number, operations: OperationResult[], blockValidator?: BlockValidatorInfo | null, elapsed?: number, status?: 'replay' | 'streaming', delta?: number): void {
+    private logBlockReport(
+        blockNumber: number,
+        operations: OperationResult[],
+        blockValidator?: BlockValidatorInfo | null,
+        elapsed?: number,
+        status?: 'replay' | 'streaming',
+        delta?: number,
+    ): void {
         const counts = new Map<string, number>();
         let total = 0;
 
