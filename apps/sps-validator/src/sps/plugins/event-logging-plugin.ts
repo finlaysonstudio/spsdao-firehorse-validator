@@ -134,7 +134,7 @@ export class EventLoggingPlugin implements Plugin {
             jsonlog({ operation: 'validation', block: blockNumber, validator, account: op.account, validated_block: validatedBlock, delta });
         } else {
             const reason = action.error?.message ?? 'unknown';
-            jsonlog({ operation: 'validation-rejected', block: blockNumber, validator, account: op.account, attempted_block: validatedBlock, reason });
+            jsonlog({ operation: 'validation-rejected', block: blockNumber, validator, account: op.account, validated_block: validatedBlock, reason });
         }
     }
 
