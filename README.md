@@ -45,6 +45,7 @@ _Fire Horse Edition_ can be deployed on multiple machines with a designated "lea
 
 _Fire Horse Edition_ includes an event logging plugin outputting JSON that can be ingested by an observability layer such as Datadog.
 
+
 ```json
 {
   block: 104467089
