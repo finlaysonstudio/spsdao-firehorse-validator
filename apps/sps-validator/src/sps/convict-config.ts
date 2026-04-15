@@ -425,6 +425,19 @@ const schema = {
         default: 'development',
         env: 'VERSION',
     },
+    last_version_suffix: {
+        doc: 'Fork suffix appended to the version (e.g. "firehorse" => "1.4.0-firehorse"). Set via .env-example.',
+        format: String,
+        default: '',
+        env: 'LAST_VERSION_SUFFIX',
+    },
+    last_version_suffix_build: {
+        // Increment on every new Fire Horse build. Reset to 0 whenever we realign with the reference implementation.
+        // See apps/sps-validator/CLAUDE.md for the release procedure.
+        doc: 'Build counter within the current suffix. Reset to 0 on realignment with reference.',
+        format: 'nat',
+        default: 0,
+    },
     db_block_retention: {
         doc: 'The amount of blocks to keep in the database',
         format: 'maybe-number',
@@ -606,5 +619,9 @@ export const ConfigType: unique symbol = Symbol.for('ConfigType');
 // TODO: we might want to support loading in json files as well:
 config.validate({ allowed: 'strict' });
 const cfg: ConfigType = config.getProperties();
+
+if (cfg.last_version_suffix) {
+    cfg.version = `${cfg.version}-${cfg.last_version_suffix}.${cfg.last_version_suffix_build}`;
+}
 
 export default cfg;
