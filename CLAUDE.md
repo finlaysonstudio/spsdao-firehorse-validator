@@ -86,4 +86,4 @@ Uses **convict** for environment variable management. See `.env-example` for all
 
 ## Node Version
 
-Node v23.3.0 (see `.nvmrc`)
+Node v24.14.0 (see `.nvmrc`)
