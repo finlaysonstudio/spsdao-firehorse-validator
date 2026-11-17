@@ -89,6 +89,7 @@ _Fire Horse Edition_ includes an event logging plugin outputting JSON that can b
 
 - Upgraded to Node 24 with Alpine 3.21 Docker images
 - Supports Amazon Linux machine images
+- Runs node with `--no-use-std-math-pow`. Since Node 24.0, V8 defaults `--use-std-math-pow` to on, so `Math.pow` and `**` use the platform `std::pow`, which differs by 1 ulp from the V8-internal implementation in Node 23 used by the reference implementation (`0.99 ** 32` is `0.7249803359578534` on Node 24, `0.7249803359578535` on Node 23.3). Consensus code (staking reward pool decline, `(1 - pct/100) ** k`) then produces block hash mismatches. The flag restores the V8-internal pow, bit-identical to Node 23.3 on the same architecture. It is a V8 flag, rejected in `NODE_OPTIONS`, so it is passed on the node command line: the Docker `ENTRYPOINT`, `nx serve` (`runtimeArgs`), and `npm test`. The flag does not exist in Node 23 and earlier. The validator refuses to start when `Math.pow` does not match the reference values (`assertConsensusMathPow`)
 
 ## Future Considerations
 

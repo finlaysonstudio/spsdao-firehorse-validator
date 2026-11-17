@@ -6,7 +6,7 @@
         "start": "nx serve",
         "validator:debug": "nx serve sps-validator --configuration=development",
         "build": "nx build",
-        "test": "nx test",
+        "test": "node --no-use-std-math-pow node_modules/nx/bin/nx.js test",
         "lint": "nx lint",
         "dump-structure": "./scripts/create-structural-dump.sh > ./apps/sps-validator/src/__tests__/structure.sql"
     },

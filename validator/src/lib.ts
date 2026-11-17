@@ -7,6 +7,8 @@ export { Quark } from './utilities/derive';
 export * from './utilities/traits';
 export type { PriceEntry } from './entities/tokens/price_history';
 export { coerceToBlockNum } from './utilities/block_num';
+export { MATH_POW_FLAG, MATH_POW_VECTORS, assertConsensusMathPow, findMathPowMismatches } from './utilities/math_pow_guard';
+export type { MathPowMismatch } from './utilities/math_pow_guard';
 export { LogLevel, log } from './utils';
 export { TransactionMode } from './db/transaction';
 export { AutonomousPoolError, AutonomousPoolsWrapper } from './libs/pool';

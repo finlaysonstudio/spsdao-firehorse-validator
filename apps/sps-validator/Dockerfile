@@ -51,4 +51,5 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=prod-dependencies /app  .
 COPY --from=builder /app/dist/apps/sps-validator ./dist
-ENTRYPOINT ["/usr/bin/dumb-init", "--", "node", "./dist/main.cjs"]
+# --no-use-std-math-pow keeps Math.pow bit-identical to Node 23 (consensus). V8 flag, rejected in NODE_OPTIONS.
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "node", "--no-use-std-math-pow", "./dist/main.cjs"]
