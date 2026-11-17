@@ -85,6 +85,10 @@ _Fire Horse Edition_ includes an event logging plugin outputting JSON that can b
 - `DB_BLOCK_RETENTION=432000` more sensible than defaulting to the entire history
 - `RPC_NODES=https://api.hive.blog,https://api.deathwing.me,https://api.openhive.network,https://techcoderx.com,https://rpc.mahdiyari.info` to add solid and remove flaky nodes per `beacon.peakd.com` results
 
+### Consensus
+
+- **Bad block 101387262.** The reference implementation (since v1.3.0) replaces this block with the canonical header `060b0bfeecfe…` and drops its transactions. The network recorded the microfork block `060b0bfe78f7…` *with* the canonical block's `validate_block` transaction, and every later block descends from that (`854e4f5a…` at 101387262). A reference replay from the initial snapshot therefore forks here (`650745a3…`). _Fire Horse Edition_ pins the microfork header and keeps the transactions, so it replays from the initial snapshot to the live chain. Nodes started from a later snapshot are unaffected either way.
+
 ### Runtime
 
 - Upgraded to Node 24 with Alpine 3.21 Docker images

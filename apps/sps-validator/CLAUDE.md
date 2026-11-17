@@ -4,10 +4,11 @@ SPS Validator application. See root CLAUDE.md for monorepo context, build/test/D
 
 ## Fire Horse Version Suffix
 
-The broadcast version string is `{version}-{LAST_VERSION_SUFFIX}.{LAST_VERSION_SUFFIX_BUILD}` — e.g. `1.4.0-firehorse.0`. Composed in `src/sps/convict-config.ts` when a suffix is set.
+The broadcast version string is `{version}-{LAST_VERSION_SUFFIX}.{LAST_VERSION_SUFFIX_BUILD}` — e.g. `1.5.1-firehorse.0`. Composed in `src/sps/convict-config.ts` when a suffix is set.
 
+- `{version}` — the `VERSION` env var (Docker build arg; upstream sets it in `docker-compose.yml` and `install.sh`). The root `package.json` version is not used and upstream does not bump it.
 - `LAST_VERSION_SUFFIX` — env var, set in `.env-example` (default `firehorse`).
-- `last_version_suffix_build` — convict default in `src/sps/convict-config.ts`. **Increment on every new Fire Horse build.** **Reset to `0` whenever we realign with the reference implementation** (i.e. pull a new upstream version that bumps `package.json` version).
+- `last_version_suffix_build` — convict default in `src/sps/convict-config.ts`. **Increment on every new Fire Horse build.** **Reset to `0` whenever we realign with the reference implementation** (i.e. merge an upstream release that changes `VERSION` in `docker-compose.yml` / `install.sh`). Fire Horse fixes merged together with a realignment ship as build `0`.
 
 ## Composition Root (`src/sps/composition-root.ts`)
 
