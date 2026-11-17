@@ -31,8 +31,7 @@ const a3 = Atom.of({ count: 0 })
     }
 
     /** @ignore */
-    // @ts-expect-error - This is a private property
-    public readonly ['$$id']: number;
+    public declare readonly $$id: number;
 
     /** @ignore */
     private constructor(state: S, { validator }: AtomConstructorOptions<S> = {}) {
