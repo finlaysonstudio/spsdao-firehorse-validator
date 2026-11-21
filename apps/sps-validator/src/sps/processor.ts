@@ -93,7 +93,7 @@ export class SpsBlockProcessor extends BlockProcessor<SpsSynchronisationConfig> 
                 { l2_block_id: block.prev_block_hash }, // previous block's l2_block_id
             );
         } else if (this.transitionManager.isTransitionPoint('bad_block_101387262', block.block_num)) {
-            // Skip transactions in block 101387262 due to a hive node microfork that many validator nodes read
+            // Replace transactions in block 101387262 due to a hive node microfork that many validator nodes read
             // during the Hive fork. This is a one-time transition point that is part of version 1.3.0 to support replaying from initial snapshot.
             return new NBlock(
                 block.block_num,
