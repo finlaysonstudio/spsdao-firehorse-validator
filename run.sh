@@ -36,6 +36,12 @@ APP_DATABASE=${APP_DATABASE:-validator}
 APP_USER=${APP_USER:-validator}
 APP_PASSWORD=${APP_PASSWORD:-validator}
 
+# Prepend "-- to_change:<change>" to a snapshot SQL file (portable: GNU sed -i "1s/^/...\n/" fails on macOS/BSD)
+prepend_change() {
+    local change="$1" file="$2"
+    { printf -- '-- to_change:%s\n' "$change"; cat "$file"; } > "$file.tmp" && mv "$file.tmp" "$file"
+}
+
 docker_compose() {
     # not really useful anymore but leaving it in case it is needed
     docker compose "$@"
@@ -81,7 +87,7 @@ snapshot() {
     CHANGE=$(echo "$CHANGE" | xargs echo -n)
     echo "Latest change: $CHANGE"
     # add to the beginning of the snapshot.sql file like -- to_change:$CHANGE
-    sed -i "1s/^/-- to_change:$CHANGE\n/" snapshot.sql
+    prepend_change "$CHANGE" snapshot.sql
 
     echo "Snapshot created. Zipping snapshot"
     zip snapshot.zip snapshot.sql
@@ -107,7 +113,7 @@ snapshot() {
             --username "$APP_USER" \
             "${APP_DATABASE}" > slim_snapshot.sql
 
-        sed -i "1s/^/-- to_change:$CHANGE\n/" slim_snapshot.sql
+        prepend_change "$CHANGE" slim_snapshot.sql
 
         echo "Slim snapshot dumped to slim_snapshot.sql"
         zip slim_snapshot.zip slim_snapshot.sql
@@ -142,7 +148,7 @@ snapshot_auto() {
     CHANGE=$(run_psql -t -c "SELECT change FROM sqitch.changes WHERE project = 'splinterlands-validator' ORDER BY committed_at DESC LIMIT 1")
     CHANGE=$(echo "$CHANGE" | xargs echo -n)
     echo "Latest change: $CHANGE"
-    sed -i "1s/^/-- to_change:$CHANGE\n/" snapshot.sql
+    prepend_change "$CHANGE" snapshot.sql
 
     echo "Snapshot created. Zipping snapshot"
     zip snapshot.zip snapshot.sql

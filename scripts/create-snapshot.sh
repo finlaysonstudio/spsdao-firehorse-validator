@@ -42,7 +42,13 @@ CHANGE=$(PGPASSWORD=$PGPASSWORD psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d 
 CHANGE=$(echo "$CHANGE" | xargs echo -n)
 echo "Latest change: $CHANGE"
 # add to the beginning of the snapshot.sql file like -- to_change:$CHANGE
-sed -i "1s/^/-- to_change:$CHANGE\n/" snapshot.sql
+# Prepend "-- to_change:<change>" to a snapshot SQL file (portable: GNU sed -i "1s/^/...\n/" fails on macOS/BSD)
+prepend_change() {
+    local change="$1" file="$2"
+    { printf -- '-- to_change:%s\n' "$change"; cat "$file"; } > "$file.tmp" && mv "$file.tmp" "$file"
+}
+
+prepend_change "$CHANGE" snapshot.sql
 
 echo "Snapshot created. You can find it in snapshot.sql"
 
