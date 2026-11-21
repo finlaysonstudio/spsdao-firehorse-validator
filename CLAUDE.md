@@ -87,3 +87,7 @@ Uses **convict** for environment variable management. See `.env-example` for all
 ## Node Version
 
 Node v24.14.0 (see `.nvmrc`)
+
+## Upstream Pull Requests
+
+Changes proposed to `TheSPSDAO/SPS-Validator` follow `docs/upstream-pull-requests.md`: branch `feat/{feature-description}-{hash}` from master, one simplified semantic commit with no body, draft PR with the two-paragraph body format.
