@@ -1,9 +1,11 @@
 import '@abraham/reflection';
-import { EntryPoint } from '@steem-monsters/splinterlands-validator';
+import { assertConsensusMathPow, EntryPoint } from '@steem-monsters/splinterlands-validator';
 import { CompositionRoot, container } from './sps/composition-root';
 
 async function start(): Promise<void> {
     try {
+        // Refuse to start if floating point pow differs from the reference implementation (see README Runtime).
+        assertConsensusMathPow();
         CompositionRoot.assertValidRegistry();
         const ep = container.resolve(EntryPoint);
         await ep.preflightCheck();

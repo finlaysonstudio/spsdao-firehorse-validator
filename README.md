@@ -45,6 +45,7 @@ _Fire Horse Edition_ can be deployed on multiple machines with a designated "lea
 
 _Fire Horse Edition_ includes an event logging plugin outputting JSON that can be ingested by an observability layer such as Datadog.
 
+
 ```json
 {
   block: 104467089
@@ -84,10 +85,15 @@ _Fire Horse Edition_ includes an event logging plugin outputting JSON that can b
 - `DB_BLOCK_RETENTION=432000` more sensible than defaulting to the entire history
 - `RPC_NODES=https://api.hive.blog,https://api.deathwing.me,https://api.openhive.network,https://techcoderx.com,https://rpc.mahdiyari.info` to add solid and remove flaky nodes per `beacon.peakd.com` results
 
+### Consensus
+
+- **Bad block 101387262.** The reference implementation (since v1.3.0) replaces this block with the canonical header `060b0bfeecfe…` and drops its transactions. The network recorded the microfork block `060b0bfe78f7…` *with* the canonical block's `validate_block` transaction, and every later block descends from that (`854e4f5a…` at 101387262). A reference replay from the initial snapshot therefore forks here (`650745a3…`). _Fire Horse Edition_ pins the microfork header and keeps the transactions, so it replays from the initial snapshot to the live chain. Nodes started from a later snapshot are unaffected either way.
+
 ### Runtime
 
 - Upgraded to Node 24 with Alpine 3.21 Docker images
 - Supports Amazon Linux machine images
+- Runs node with `--no-use-std-math-pow`. Since Node 24.0, V8 defaults `--use-std-math-pow` to on, so `Math.pow` and `**` use the platform `std::pow`, which differs by 1 ulp from the V8-internal implementation in Node 23 used by the reference implementation (`0.99 ** 32` is `0.7249803359578534` on Node 24, `0.7249803359578535` on Node 23.3). Consensus code (staking reward pool decline, `(1 - pct/100) ** k`) then produces block hash mismatches. The flag restores the V8-internal pow, bit-identical to Node 23.3 on the same architecture. It is a V8 flag, rejected in `NODE_OPTIONS`, so it is passed on the node command line: the Docker `ENTRYPOINT`, `nx serve` (`runtimeArgs`), and `npm test`. The flag does not exist in Node 23 and earlier. The validator refuses to start when `Math.pow` does not match the reference values (`assertConsensusMathPow`)
 
 ## Future Considerations
 

@@ -15,6 +15,7 @@ import {
     BalanceRepository,
 } from '@steem-monsters/splinterlands-validator';
 import { inject, injectable } from 'tsyringe';
+import type { SignedBlock } from 'splinterlands-dhive-sl';
 import { SpsSynchronisationClosure, SpsSynchronisationConfig } from './sync';
 import { TransitionManager } from './features/transition';
 import { VALIDATE_BLOCK_REWARD_ACCOUNT } from './actions/validator/validate_block';
@@ -92,15 +93,20 @@ export class SpsBlockProcessor extends BlockProcessor<SpsSynchronisationConfig> 
                 { l2_block_id: block.prev_block_hash }, // previous block's l2_block_id
             );
         } else if (this.transitionManager.isTransitionPoint('bad_block_101387262', block.block_num)) {
-            // Skip transactions in block 101387262 due to a hive node microfork that many validator nodes read
-            // during the Hive fork. This is a one-time transition point that is part of version 1.3.0 to support replaying from initial snapshot.
+            // Fire Horse deviation from the reference implementation (a49370d, v1.3.0 onwards).
+            // Upstream pins the canonical header 060b0bfeecfe... with no transactions, which matches neither the
+            // canonical block nor what the network recorded, so an upstream replay from the initial snapshot forks
+            // here (l2 650745a3... instead of 854e4f5a...). The archive and the surviving chain (beaker007 validated
+            // 101387263 = faf01c06... on top of it) have the microfork block 060b0bfe78f7... *with* the canonical
+            // block's transactions (the validate_block tx ee65874f...). Keep the transactions; pin the microfork header.
             return new NBlock(
                 block.block_num,
                 {
                     timestamp: '2025-11-21T21:27:54.000',
-                    transactions: [],
-                    transaction_ids: [],
-                    block_id: '060b0bfeecfece0743f61e8b0f26335839f6557f',
+                    // NBlock keeps only the unsigned transaction; processing reads nothing else
+                    transactions: block.transactions.map((t) => t.transaction) as SignedBlock['transactions'],
+                    transaction_ids: block.transactions.map((t) => t.id),
+                    block_id: '060b0bfe78f7279a3384d2091cbd191e478c0a69',
                     previous: '060b0bfd484a25cd78093ddfdbf09a28342c4df8',
                 },
                 { l2_block_id: block.prev_block_hash }, // previous block's l2_block_id

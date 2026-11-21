@@ -7,6 +7,8 @@ export { Quark } from './utilities/derive';
 export * from './utilities/traits';
 export type { PriceEntry } from './entities/tokens/price_history';
 export { coerceToBlockNum } from './utilities/block_num';
+export { MATH_POW_FLAG, MATH_POW_VECTORS, assertConsensusMathPow, findMathPowMismatches } from './utilities/math_pow_guard';
+export type { MathPowMismatch } from './utilities/math_pow_guard';
 export { LogLevel, log } from './utils';
 export { TransactionMode } from './db/transaction';
 export { AutonomousPoolError, AutonomousPoolsWrapper } from './libs/pool';
@@ -102,7 +104,26 @@ export type { OperationData } from './entities/operation';
 export { isDefined } from './libs/guards';
 export type { BookkeepingConfig } from './entities/bookkeeping';
 export { Bookkeeping, BookkeepingWatch, BookkeepingFromConfig, BookkeepingDefault } from './entities/bookkeeping';
-export { DelegationManager, DelegationPromiseHandler } from './features/delegation';
-export type { DelegationManagerOpts, DelgationPromiseHandlerOpts } from './features/delegation';
-export { PromiseHandler, PromiseManager } from './features/promises';
+export {
+    DelegationManager,
+    DelegationPromiseHandler,
+    DelegationOfferPromiseHandler,
+    RentalDelegationExpirationSource,
+    DelegationRentalWatch,
+    delegation_rental_schema,
+} from './features/delegation';
+export type {
+    DelegationManagerOpts,
+    DelgationPromiseHandlerOpts,
+    DelegationOfferPromiseHandlerOpts,
+    DelegationRentalConfig,
+    DelegationPromiseParams,
+    RentalDelegationExpirationSourceOpts,
+} from './features/delegation';
+export { PromiseHandler, PromiseManager, PromiseHandlerRouter, PromiseHandlerRoute } from './features/promises';
+export type { HandlerFulfillPromiseResult, HandlerCreatePromiseResult, HandlerCreateResult } from './features/promises';
 export { isStringArray } from './utilities/guards';
+export { RentalDelegationRepository } from './entities/rental/rental_delegation';
+export type { RentalDelegationEntry, CreateRentalDelegationRequest } from './entities/rental/rental_delegation';
+export { RentalDelegationEntity } from './db/tables';
+export type { RentalDelegationStatus } from './db/tables';
