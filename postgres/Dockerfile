@@ -1,4 +1,4 @@
-FROM postgres:16.8-bullseye
+FROM postgres:16.8-bookworm
 
 ENV POSTGRES_DB ""
 ENV POSTGRES_USER ""
