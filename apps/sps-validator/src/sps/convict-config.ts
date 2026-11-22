@@ -463,7 +463,7 @@ const schema = {
         rpc_node: {
             doc: 'The Binance Smart Chain JSON RPC node to connect to',
             format: 'url',
-            default: 'https://bsc-dataseed.binance.org',
+            default: 'https://bsc-dataseed1.binance.org',
             env: 'BSC_RPC_NODE',
         },
         contract_address: {
