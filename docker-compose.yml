@@ -38,6 +38,7 @@ services:
     restart: on-failure
     environment:
       VERSION: "${VERSION:-1.5.1}"
+      LAST_VERSION_SUFFIX: ${LAST_VERSION_SUFFIX:-firehorse}
       API_PORT: "3333"
       API_DETAILED_ERRORS: ${API_DETAILED_ERRORS:-false}
       POSTGRES_PASSWORD: ${APP_PASSWORD:-validator}
